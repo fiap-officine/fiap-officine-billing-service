@@ -1,0 +1,870 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Oficina Mecânica - Billing Service",
+    "description": "Orçamentos, aprovação pelo cliente e pagamentos via **Mercado Pago** (Checkout Pro, webhook com validação de `x-signature`, estorno como compensação). Participante da saga orquestrada pelo OS Service.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/billing/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Healthcheck do Billing Service",
+        "operationId": "get_health_billing_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/": {
+      "get": {
+        "tags": [
+          "Orçamentos"
+        ],
+        "summary": "Listar Orcamentos",
+        "description": "Lista orçamentos (cliente vê apenas os próprios). Filtro por OS.",
+        "operationId": "listar_orcamentos_api_v1_orcamentos__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "os_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Os Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrcamentoResponse"
+                  },
+                  "title": "Response Listar Orcamentos Api V1 Orcamentos  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{orcamento_id}": {
+      "get": {
+        "tags": [
+          "Orçamentos"
+        ],
+        "summary": "Buscar Orcamento",
+        "operationId": "buscar_orcamento_api_v1_orcamentos__orcamento_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orcamento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Orcamento Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{orcamento_id}/aprovar": {
+      "post": {
+        "tags": [
+          "Orçamentos"
+        ],
+        "summary": "Aprovar Orcamento",
+        "description": "Cliente aprova o orçamento -> evento `OrcamentoAprovado` para a saga, que\nentão solicita o pagamento no Mercado Pago.",
+        "operationId": "aprovar_orcamento_api_v1_orcamentos__orcamento_id__aprovar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orcamento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Orcamento Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orcamentos/{orcamento_id}/recusar": {
+      "post": {
+        "tags": [
+          "Orçamentos"
+        ],
+        "summary": "Recusar Orcamento",
+        "description": "Cliente recusa -> evento `OrcamentoRecusado`; a saga compensa e cancela a OS.",
+        "operationId": "recusar_orcamento_api_v1_orcamentos__orcamento_id__recusar_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orcamento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Orcamento Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RecusarRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Dados"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrcamentoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pagamentos/webhook": {
+      "post": {
+        "tags": [
+          "Pagamentos (Mercado Pago)"
+        ],
+        "summary": "Webhook Mercado Pago",
+        "description": "Notificação do Mercado Pago (rota **pública** no API Gateway, sem JWT).\n\n1. Valida `x-signature` (HMAC-SHA256 com a assinatura secreta da aplicação).\n2. Reconsulta `GET /v1/payments/{id}` — nunca confia no corpo da notificação.\n3. Atualiza o pagamento e publica `PagamentoConfirmado`/`PagamentoRecusado`.",
+        "operationId": "webhook_mercado_pago_api_v1_pagamentos_webhook_post",
+        "parameters": [
+          {
+            "name": "data.id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Data.Id"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "x-signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Signature"
+            }
+          },
+          {
+            "name": "x-request-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pagamentos/": {
+      "get": {
+        "tags": [
+          "Pagamentos (Mercado Pago)"
+        ],
+        "summary": "Listar Pagamentos",
+        "operationId": "listar_pagamentos_api_v1_pagamentos__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "orcamento_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Orcamento Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PagamentoResponse"
+                  },
+                  "title": "Response Listar Pagamentos Api V1 Pagamentos  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pagamentos/{pagamento_id}": {
+      "get": {
+        "tags": [
+          "Pagamentos (Mercado Pago)"
+        ],
+        "summary": "Buscar Pagamento",
+        "description": "Status da cobrança e link do checkout (Checkout Pro / Pix).",
+        "operationId": "buscar_pagamento_api_v1_pagamentos__pagamento_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pagamento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pagamento Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pagamentos/{pagamento_id}/simular": {
+      "post": {
+        "tags": [
+          "Pagamentos (Mercado Pago)"
+        ],
+        "summary": "Simular Pagamento",
+        "description": "**Somente PAYMENT_GATEWAY=fake** (dev/testes): simula o pagamento no\nprovedor e a notificação do webhook.",
+        "operationId": "simular_pagamento_api_v1_pagamentos__pagamento_id__simular_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pagamento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pagamento Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimularPagamentoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagamentoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "OrcamentoItemResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "ref_id": {
+            "type": "integer",
+            "title": "Ref Id"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "quantidade": {
+            "type": "integer",
+            "title": "Quantidade"
+          },
+          "valor_unitario": {
+            "type": "string",
+            "title": "Valor Unitario"
+          },
+          "valor_total": {
+            "type": "string",
+            "title": "Valor Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tipo",
+          "ref_id",
+          "descricao",
+          "quantidade",
+          "valor_unitario",
+          "valor_total"
+        ],
+        "title": "OrcamentoItemResponse"
+      },
+      "OrcamentoResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "os_id": {
+            "type": "integer",
+            "title": "Os Id"
+          },
+          "cliente_id": {
+            "type": "integer",
+            "title": "Cliente Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusOrcamento"
+          },
+          "valor_total": {
+            "type": "string",
+            "title": "Valor Total"
+          },
+          "expira_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expira Em"
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          },
+          "decidido_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidido Em"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "itens": {
+            "items": {
+              "$ref": "#/components/schemas/OrcamentoItemResponse"
+            },
+            "type": "array",
+            "title": "Itens"
+          },
+          "pagamentos": {
+            "items": {
+              "$ref": "#/components/schemas/PagamentoResponse"
+            },
+            "type": "array",
+            "title": "Pagamentos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "os_id",
+          "cliente_id",
+          "status",
+          "valor_total",
+          "expira_em",
+          "motivo",
+          "decidido_em",
+          "created_at",
+          "itens",
+          "pagamentos"
+        ],
+        "title": "OrcamentoResponse"
+      },
+      "PagamentoResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "orcamento_id": {
+            "type": "integer",
+            "title": "Orcamento Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusPagamento"
+          },
+          "valor": {
+            "type": "string",
+            "title": "Valor"
+          },
+          "metodo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metodo"
+          },
+          "gateway": {
+            "type": "string",
+            "title": "Gateway"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "mp_payment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mp Payment Id"
+          },
+          "mp_refund_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mp Refund Id"
+          },
+          "status_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Detail"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "orcamento_id",
+          "status",
+          "valor",
+          "metodo",
+          "gateway",
+          "checkout_url",
+          "mp_payment_id",
+          "mp_refund_id",
+          "status_detail",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PagamentoResponse"
+      },
+      "RecusarRequest": {
+        "properties": {
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "title": "RecusarRequest"
+      },
+      "SimularPagamentoRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "pattern": "^(approved|rejected)$",
+            "title": "Status",
+            "default": "approved"
+          }
+        },
+        "type": "object",
+        "title": "SimularPagamentoRequest"
+      },
+      "StatusOrcamento": {
+        "type": "string",
+        "enum": [
+          "gerado",
+          "aprovado",
+          "recusado",
+          "cancelado",
+          "expirado"
+        ],
+        "title": "StatusOrcamento"
+      },
+      "StatusPagamento": {
+        "type": "string",
+        "enum": [
+          "pendente",
+          "aprovado",
+          "recusado",
+          "estornado",
+          "cancelado"
+        ],
+        "title": "StatusPagamento"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/api/v1/auth/login"
+          }
+        }
+      }
+    }
+  }
+}

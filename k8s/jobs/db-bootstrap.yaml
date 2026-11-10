@@ -1,0 +1,46 @@
+# Cria o banco lógico e o usuário do serviço na instância RDS compartilhada
+# (idempotente). Roda dentro do cluster porque o RDS não é público.
+# "Banco próprio": usuário distinto, dono do seu banco, sem GRANT cruzado e
+# com CONNECT revogado de PUBLIC — nenhum serviço acessa o banco do outro.
+#
+# Uso (pipeline): kubectl delete job billing-service-db-bootstrap --ignore-not-found
+#                 kubectl apply -f k8s/jobs/db-bootstrap.yaml
+#                 kubectl wait --for=condition=complete job/billing-service-db-bootstrap
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: billing-service-db-bootstrap
+  namespace: officine
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          envFrom:
+            - secretRef:
+                name: billing-service-db-admin
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              export PGPASSWORD="$DB_ADMIN_PASSWORD" PGSSLMODE=require
+              psql -h "$DB_HOST" -U "$DB_ADMIN_USER" -d "$DB_ADMIN_DB" -v ON_ERROR_STOP=1 \
+                   -v svc_user="$DB_USER" -v svc_pass="$DB_PASSWORD" -v svc_db="$DB_NAME" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'svc_user', :'svc_pass')
+               WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'svc_user') \gexec
+              SELECT format('ALTER ROLE %I PASSWORD %L', :'svc_user', :'svc_pass') \gexec
+              SELECT format('GRANT %I TO CURRENT_USER', :'svc_user') \gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', :'svc_db', :'svc_user')
+               WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'svc_db') \gexec
+              SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'svc_db') \gexec
+              SELECT format('GRANT ALL ON DATABASE %I TO %I', :'svc_db', :'svc_user') \gexec
+              SQL
+              echo "Banco $DB_NAME pronto para $DB_USER"
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
