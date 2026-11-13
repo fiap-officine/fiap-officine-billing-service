@@ -123,7 +123,7 @@ jobs:
             --from-literal=DB_HOST="$DB_HOST" \
             --from-literal=DB_ADMIN_USER="$DB_ADMIN_USER" \
             --from-literal=DB_ADMIN_PASSWORD="$DB_ADMIN_PASSWORD" \
-            --from-literal=DB_ADMIN_DB="${DB_ADMIN_DB:-officine}" \
+            --from-literal=DB_ADMIN_DB="${DB_ADMIN_DB:-postgres}" \
             --from-literal=DB_USER="$DB_USER" \
             --from-literal=DB_PASSWORD="$DB_PASSWORD" \
             --from-literal=DB_NAME=billing_db \
