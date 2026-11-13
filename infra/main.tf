@@ -15,12 +15,12 @@ terraform {
     }
   }
 
-  # terraform init -backend-config="key=billing-service/<env>/terraform.tfstate"
-  # backend "s3" {
-  #   bucket  = "fiap-officine-terraform-state"
-  #   region  = "sa-east-1"
-  #   encrypt = true
-  # }
+  # State remoto no S3 (configuração parcial). O workflow infra.yml cria o
+  # bucket fiap-officine-tfstate-<account_id> se não existir e passa
+  # bucket/key/region no init. Uso local sem AWS: terraform init -backend=false
+  backend "s3" {
+    encrypt = true
+  }
 }
 
 provider "aws" {
