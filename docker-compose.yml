@@ -1,0 +1,60 @@
+# Ambiente local do Billing Service: PostgreSQL (billing_db) + LocalStack (SQS).
+# PAYMENT_GATEWAY=fake permite rodar sem credenciais do Mercado Pago
+# (use POST /api/v1/pagamentos/{id}/simular). Para o sandbox real, defina
+# PAYMENT_GATEWAY=mercadopago, MP_ACCESS_TOKEN e MP_WEBHOOK_SECRET.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: billing_service
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?copie .env.example para .env}
+      POSTGRES_DB: billing_db
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing_service -d billing_db"]
+      interval: 5s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-2
+      SQS_QUEUE_PREFIX: fiap-officine
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init-aws.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs get-queue-url --queue-name fiap-officine-billing-commands --region us-east-2"]
+      interval: 5s
+      retries: 20
+
+  billing-service:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      DB_HOST: db
+      DB_USER: billing_service
+      DB_PASSWORD: ${DB_PASSWORD:?copie .env.example para .env}
+      DB_NAME: billing_db
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_REGION: us-east-2
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_QUEUE_PREFIX: fiap-officine
+      RUN_WORKERS: "true"
+      APP_ENV: development
+      JWT_SECRET_KEY: dev-secret-compartilhado-entre-servicos
+      PAYMENT_GATEWAY: ${PAYMENT_GATEWAY:-fake}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      MP_NOTIFICATION_URL: ${MP_NOTIFICATION_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"

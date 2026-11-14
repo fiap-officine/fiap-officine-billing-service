@@ -77,6 +77,7 @@ Contratos: [docs/contracts](docs/contracts/README.md).
 ## Rodando e testando
 
 ```bash
+cp .env.example .env         # credenciais locais (o compose lê DB_PASSWORD daqui)
 docker compose up --build     # Postgres + LocalStack + billing (gateway fake)
 uv run pytest                 # unit + integração; falha abaixo de 80%
 ```

@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+configMapGenerator:
+  - name: billing-service-config
+    behavior: merge
+    literals:
+      - APP_ENV=homolog
+      # Preenchido pelo pipeline com o endpoint do RDS publicado no SSM
+      - DB_HOST=definido-pelo-pipeline
+      - SQS_QUEUE_PREFIX=fiap-officine-homolog
+      # Webhook público (rota sem authorizer no API Gateway)
+      # Preenchido pelo pipeline com a URL do API Gateway publicada no SSM
+      - MP_NOTIFICATION_URL=definido-pelo-pipeline
+      - PAYMENT_EXPIRATION_MINUTES=5
+
+# A imagem (ECR + tag = SHA do commit) é definida pelo pipeline:
+#   kustomize edit set image billing-service=<registry>/fiap-officine-billing-service:<sha>
