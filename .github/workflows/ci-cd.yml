@@ -190,8 +190,21 @@ jobs:
           kustomize build . | kubectl apply -f -
           kubectl -n "$NAMESPACE" rollout status deployment/billing-service --timeout=240s
 
-      - name: Smoke test
+      - name: Smoke test (de dentro do pod, pelo Service do cluster)
         run: |
-          kubectl -n "$NAMESPACE" run "smoke-billing-${GITHUB_RUN_ID}" --rm -i --restart=Never \
-            --image=curlimages/curl:8.10.1 -- \
-            curl -fsS --retry 5 --retry-delay 3 http://billing-service:8000/billing/health
+          for attempt in $(seq 1 10); do
+            kubectl -n "$NAMESPACE" exec deploy/billing-service -- python -c \
+              "import urllib.request as u; print(u.urlopen('http://billing-service:8000/billing/health', timeout=10).read().decode())" \
+              && exit 0
+            sleep 6
+          done
+          exit 1
+
+      - name: Diagnóstico (só quando o deploy falha)
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          kubectl -n "$NAMESPACE" describe deploy/billing-service | tail -40 || true
+          kubectl -n "$NAMESPACE" logs deploy/billing-service --all-containers --tail=80 || true
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -30 || true
+          kubectl top nodes || true
