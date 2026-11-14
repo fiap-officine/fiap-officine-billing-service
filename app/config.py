@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # URL pública do webhook (API Gateway): https://<api>/api/v1/pagamentos/webhook
     MP_NOTIFICATION_URL: str | None = None
     MP_USE_SANDBOX_URL: bool = True
+    # No sandbox, o pagador e a conta Comprador de teste logada no checkout: enviar
+    # o e-mail do cliente da oficina faz o MP recusar o meio de pagamento
+    MP_ENVIAR_EMAIL_PAGADOR: bool = True
     PAYMENT_EXPIRATION_MINUTES: int = 30
     PAYMENT_RECONCILE_INTERVAL_SECONDS: float = 60.0
 

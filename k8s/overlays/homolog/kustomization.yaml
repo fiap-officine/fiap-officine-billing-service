@@ -16,6 +16,8 @@ configMapGenerator:
       # Preenchido pelo pipeline com a URL do API Gateway publicada no SSM
       - MP_NOTIFICATION_URL=definido-pelo-pipeline
       - PAYMENT_EXPIRATION_MINUTES=5
+      # Sandbox: o pagador é a conta Comprador de teste logada no checkout
+      - MP_ENVIAR_EMAIL_PAGADOR=false
 
 # A imagem (ECR + tag = SHA do commit) é definida pelo pipeline:
 #   kustomize edit set image billing-service=<registry>/fiap-officine-billing-service:<sha>
