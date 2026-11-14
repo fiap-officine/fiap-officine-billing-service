@@ -186,6 +186,11 @@ jobs:
           API_URL=$(aws ssm get-parameter --name "$SSM_PREFIX/api-gateway/url" \
             --query Parameter.Value --output text)
           sed -i "s#MP_NOTIFICATION_URL=.*#MP_NOTIFICATION_URL=$API_URL/api/v1/pagamentos/webhook#" kustomization.yaml
+          # Hash dos Secrets como anotação do pod: credencial nova reinicia os pods
+          # (as variáveis de ambiente vindas de Secret só são lidas na partida)
+          SECRETS_HASH=$(kubectl -n "$NAMESPACE" get secret billing-service-secrets newrelic-secret \
+            --ignore-not-found -o jsonpath='{.items[*].data}' | sha256sum | cut -c1-16)
+          kustomize edit add annotation --force "officine.fiap/secrets-hash:$SECRETS_HASH"
           kustomize edit set image "billing-service=$IMAGE"
           kustomize build . | kubectl apply -f -
           kubectl -n "$NAMESPACE" rollout status deployment/billing-service --timeout=240s
