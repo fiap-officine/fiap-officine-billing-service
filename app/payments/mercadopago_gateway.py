@@ -84,7 +84,7 @@ class MercadoPagoGateway:
         }
         if self.settings.MP_NOTIFICATION_URL:
             preference["notification_url"] = self.settings.MP_NOTIFICATION_URL
-        if request.payer_email:
+        if request.payer_email and self.settings.MP_ENVIAR_EMAIL_PAGADOR:
             preference["payer"] = {"email": request.payer_email}
 
         body = _ok(self.sdk.preference().create(preference), "create_preference")

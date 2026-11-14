@@ -93,6 +93,16 @@ class TestMercadoPagoGateway:
         enviado = sdk.preference.return_value.create.call_args.args[0]
         assert "notification_url" not in enviado and "payer" not in enviado
 
+    def test_create_checkout_sem_email_do_pagador_no_sandbox(self):
+        gw, sdk = self._gateway(MP_ENVIAR_EMAIL_PAGADOR=False)
+        sdk.preference.return_value.create.return_value = {
+            "status": 201,
+            "response": {"id": "p", "sandbox_init_point": "https://mp/sandbox"},
+        }
+        gw.create_checkout(_request())
+        enviado = sdk.preference.return_value.create.call_args.args[0]
+        assert "payer" not in enviado
+
     def test_erro_do_mercado_pago(self):
         gw, sdk = self._gateway()
         sdk.preference.return_value.create.return_value = {
