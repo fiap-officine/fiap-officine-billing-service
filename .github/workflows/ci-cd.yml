@@ -15,6 +15,8 @@ env:
   ECR_REPOSITORY: fiap-officine-billing-service
   AWS_REGION: sa-east-1
   NAMESPACE: officine
+  # Parâmetros publicados por fiap-officine-kubernets e fiap-officine-database
+  SSM_PREFIX: /fiap-officine/homolog
 
 jobs:
   # ── 1. Lint + testes (unit, integração, BDD) com cobertura mínima de 80% ──
@@ -88,22 +90,33 @@ jobs:
       IMAGE: ${{ needs.build-push.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
       - uses: azure/setup-kubectl@v4
       - uses: imranismail/setup-kustomize@v2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Kubeconfig
+      - name: Kubeconfig (publicado pelo nó K3s no SSM; fallback no secret KUBE_CONFIG_DATA)
         env:
-          KUBE_CONFIG_RAW: ${{ secrets.KUBE_CONFIG_DATA }}
-        run: pip install pyyaml >/dev/null && python scripts/setup_kubeconfig.py
+          KUBE_CONFIG_SECRET: ${{ secrets.KUBE_CONFIG_DATA }}
+        run: |
+          KUBE_CONFIG_RAW=$(aws ssm get-parameter --name "$SSM_PREFIX/k3s/kubeconfig" \
+            --with-decryption --query Parameter.Value --output text 2>/dev/null || true)
+          export KUBE_CONFIG_RAW="${KUBE_CONFIG_RAW:-$KUBE_CONFIG_SECRET}"
+          pip install pyyaml >/dev/null && python scripts/setup_kubeconfig.py
+          kubectl cluster-info
 
       - name: Segredos (gerados a partir de GitHub Secrets; nunca versionados)
         env:
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_ADMIN_USER: ${{ secrets.DB_ADMIN_USER }}
-          DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
+          DB_ADMIN_USER_SECRET: ${{ secrets.DB_ADMIN_USER }}
+          DB_ADMIN_PASSWORD_SECRET: ${{ secrets.DB_ADMIN_PASSWORD }}
           DB_ADMIN_DB: ${{ secrets.DB_ADMIN_DB }}
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           MP_ACCESS_TOKEN: ${{ secrets.MP_ACCESS_TOKEN }}
@@ -111,7 +124,15 @@ jobs:
           NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
         run: |
           kubectl apply -f k8s/base/namespace.yaml
-          DB_HOST=$(kubectl kustomize "k8s/overlays/$OVERLAY" | grep -m1 'DB_HOST:' | awk '{print $2}')
+          # Endpoint e master do RDS publicados pelo fiap-officine-database (secrets como fallback)
+          ssm() { aws ssm get-parameter --name "$SSM_PREFIX/$1" --with-decryption \
+                    --query Parameter.Value --output text 2>/dev/null || true; }
+          DB_HOST=$(ssm rds/address)
+          DB_ADMIN_USER=$(ssm rds/master-username); DB_ADMIN_USER=${DB_ADMIN_USER:-$DB_ADMIN_USER_SECRET}
+          DB_ADMIN_PASSWORD=$(ssm rds/master-password); DB_ADMIN_PASSWORD=${DB_ADMIN_PASSWORD:-$DB_ADMIN_PASSWORD_SECRET}
+          echo "::add-mask::$DB_ADMIN_PASSWORD"
+          [ -n "$DB_HOST" ] || { echo "::error::rds/address não encontrado no SSM"; exit 1; }
+          echo "DB_HOST=$DB_HOST" >> "$GITHUB_ENV"
           kubectl -n "$NAMESPACE" create secret generic billing-service-secrets \
             --from-literal=DB_USER="$DB_USER" \
             --from-literal=DB_PASSWORD="$DB_PASSWORD" \
@@ -140,9 +161,22 @@ jobs:
           kubectl apply -f k8s/jobs/db-bootstrap.yaml
           kubectl -n "$NAMESPACE" wait --for=condition=complete job/billing-service-db-bootstrap --timeout=120s
 
+      - name: Credencial do ECR para o K3s (imagePullSecret renovado a cada deploy)
+        run: |
+          kubectl -n "$NAMESPACE" create secret docker-registry ecr-pull \
+            --docker-server="${IMAGE%%/*}" --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region "$AWS_REGION")" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" patch serviceaccount default \
+            -p '{"imagePullSecrets":[{"name":"ecr-pull"}]}'
+
       - name: Deploy (Kustomize) + rollout
         run: |
           cd "k8s/overlays/$OVERLAY"
+          sed -i "s#DB_HOST=.*#DB_HOST=$DB_HOST#" kustomization.yaml
+          API_URL=$(aws ssm get-parameter --name "$SSM_PREFIX/api-gateway/url" \
+            --query Parameter.Value --output text)
+          sed -i "s#MP_NOTIFICATION_URL=.*#MP_NOTIFICATION_URL=$API_URL/api/v1/pagamentos/webhook#" kustomization.yaml
           kustomize edit set image "billing-service=$IMAGE"
           kustomize build . | kubectl apply -f -
           kubectl -n "$NAMESPACE" rollout status deployment/billing-service --timeout=240s

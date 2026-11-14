@@ -9,10 +9,12 @@ configMapGenerator:
     behavior: merge
     literals:
       - APP_ENV=homolog
-      - DB_HOST=fiap-officine-homolog-rds.chmmasky8j6y.sa-east-1.rds.amazonaws.com
+      # Preenchido pelo pipeline com o endpoint do RDS publicado no SSM
+      - DB_HOST=definido-pelo-pipeline
       - SQS_QUEUE_PREFIX=fiap-officine-homolog
       # Webhook público (rota sem authorizer no API Gateway)
-      - MP_NOTIFICATION_URL=https://kai652jumh.execute-api.sa-east-1.amazonaws.com/api/v1/pagamentos/webhook
+      # Preenchido pelo pipeline com a URL do API Gateway publicada no SSM
+      - MP_NOTIFICATION_URL=definido-pelo-pipeline
       - PAYMENT_EXPIRATION_MINUTES=5
 
 # A imagem (ECR + tag = SHA do commit) é definida pelo pipeline:
