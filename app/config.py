@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     PAYMENT_RECONCILE_INTERVAL_SECONDS: float = 60.0
 
     # ── Mensageria (Amazon SQS) ──────────────────
-    AWS_REGION: str = "sa-east-1"
+    AWS_REGION: str = "us-east-2"
     AWS_ENDPOINT_URL: str | None = None
     SQS_QUEUE_PREFIX: str = "fiap-officine"
     SQS_WAIT_TIME_SECONDS: int = 20

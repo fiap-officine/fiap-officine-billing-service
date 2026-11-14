@@ -24,7 +24,7 @@ configMapGenerator:
       - NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
       - DB_PORT=5432
       - DB_NAME=billing_db
-      - AWS_REGION=sa-east-1
+      - AWS_REGION=us-east-2
       - RUN_WORKERS=true
       - LOG_LEVEL=INFO
       - JWT_ALGORITHM=HS256
