@@ -16,6 +16,8 @@ spec:
   ttlSecondsAfterFinished: 600
   template:
     spec:
+      # A aplicação não usa a API do Kubernetes: sem token montado
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       containers:
         - name: psql

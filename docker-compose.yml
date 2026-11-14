@@ -7,7 +7,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: billing_service
-      POSTGRES_PASSWORD: billing_service
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?copie .env.example para .env}
       POSTGRES_DB: billing_db
     ports:
       - "5433:5432"
@@ -38,7 +38,7 @@ services:
     environment:
       DB_HOST: db
       DB_USER: billing_service
-      DB_PASSWORD: billing_service
+      DB_PASSWORD: ${DB_PASSWORD:?copie .env.example para .env}
       DB_NAME: billing_db
       AWS_ENDPOINT_URL: http://localstack:4566
       AWS_REGION: us-east-2
