@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: officine
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: fiap-officine
+    includeSelectors: false
+
+# Valores não sensíveis. Segredos (billing-service-secrets) são criados no pipeline
+# a partir de GitHub Secrets e nunca versionados.
+configMapGenerator:
+  - name: billing-service-config
+    literals:
+      - SERVICE_NAME=billing-service
+      - NEW_RELIC_APP_NAME=officine-billing-service
+      - NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+      - DB_PORT=5432
+      - DB_NAME=billing_db
+      - AWS_REGION=us-east-2
+      - RUN_WORKERS=true
+      - LOG_LEVEL=INFO
+      - JWT_ALGORITHM=HS256
+      - PAYMENT_GATEWAY=mercadopago
+      - MP_USE_SANDBOX_URL=true
+      - PAYMENT_EXPIRATION_MINUTES=30
+      - ORCAMENTO_VALIDADE_HORAS=48
+
+images:
+  - name: billing-service
+    newName: billing-service
+    newTag: latest
